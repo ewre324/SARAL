@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from dotenv import load_dotenv
 import os
+import requests
 from app.auth.dependencies import get_current_user
 from app.models.request_models import APIKeysRequest
 
@@ -8,16 +9,15 @@ router = APIRouter()
 
 # Load environment variables from .env file
 load_dotenv()
-# env_vars = dotenv_values()
 
-# In-memory storage for API keys (use secure storage in production)
+# In-memory storage for API keys
 api_keys_storage = {}
 
 @router.post("/setup")
 async def setup_api_keys(request: APIKeysRequest):
     """Store API keys securely."""
 
-    # Always try to set Gemini key, fallback to .env if not provided
+    # Gemini Setup
     gemini_key = (request.gemini_key or "").strip() or os.getenv("GEMINI_API_KEY")
     if gemini_key:
         try:
@@ -29,11 +29,12 @@ async def setup_api_keys(request: APIKeysRequest):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid Gemini API key: {str(e)}")
 
-    # Always try to set Sarvam key, fallback to .env if not provided
+    # Sarvam Setup
     sarvam_key = (request.sarvam_key or "").strip() or os.getenv("SARVAM_API_KEY")
     if sarvam_key:
         api_keys_storage["sarvam_key"] = sarvam_key
 
+    # OpenAI Setup
     if request.openai_key:
         try:
             import openai
@@ -43,26 +44,46 @@ async def setup_api_keys(request: APIKeysRequest):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid OpenAI API key: {str(e)}")
 
+    # Ollama Setup (Check connection)
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    try:
+        response = requests.get(f"{ollama_url}/api/tags", timeout=2)
+        if response.status_code == 200:
+            api_keys_storage["ollama_url"] = ollama_url
+            api_keys_storage["ollama_model"] = os.getenv("OLLAMA_MODEL", "llama3")
+    except Exception:
+        # Don't fail if Ollama isn't running, just don't store it as "active"
+        pass
+
     return {"message": "API keys configured successfully"}
 
 @router.get("/status")
 async def get_api_keys_status():
     """Get status of configured API keys."""
-
     return {
         "gemini_configured": "gemini_key" in api_keys_storage or bool(os.getenv("GEMINI_API_KEY")),
         "sarvam_configured": "sarvam_key" in api_keys_storage or bool(os.getenv("SARVAM_API_KEY")),
-        "openai_configured": "openai_key" in api_keys_storage
+        "openai_configured": "openai_key" in api_keys_storage,
+        "ollama_configured": "ollama_url" in api_keys_storage or bool(os.getenv("OLLAMA_URL"))
     }
 
 def get_api_keys():
-    # Always try to fallback to .env for Sarvam key if not set
+    """Retrieve all configured API keys and LLM settings."""
+
+    # 1. Load Sarvam (Fallback to env)
     if "sarvam_key" not in api_keys_storage or not api_keys_storage["sarvam_key"]:
         sarvam_key = os.getenv("SARVAM_API_KEY")
         if sarvam_key:
             api_keys_storage["sarvam_key"] = sarvam_key
 
-    # Handle multiple Gemini keys: GEMINI_API_KEY_1, GEMINI_API_KEY_2, ...
+    # 2. Load Ollama (Always check env)
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    ollama_model = os.getenv("OLLAMA_MODEL", "llama3")
+    # Simple check if reachable (optional, can skip for speed)
+    api_keys_storage["ollama_url"] = ollama_url
+    api_keys_storage["ollama_model"] = ollama_model
+
+    # 3. Load Gemini (Handle multiple keys)
     gemini_keys = []
     i = 1
     while True:
@@ -72,33 +93,21 @@ def get_api_keys():
             i += 1
         else:
             break
-    # Fallback to GEMINI_API_KEY if no numbered keys found
     if not gemini_keys:
         key = os.getenv("GEMINI_API_KEY")
         if key:
             gemini_keys.append(key)
 
-    # Try each Gemini key until one works
+    # Try to find a working Gemini key
+    valid_gemini = False
     for gemini_key in gemini_keys:
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            model.generate_content("Hello")
+            # We don't validate every call to save time, just ensure one exists
             api_keys_storage["gemini_key"] = gemini_key
+            valid_gemini = True
             break
         except Exception:
-            continue  # Try next key
-    else:
-        # No valid Gemini key found
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No valid Gemini API key found. Please check your .env file."
-        )
+            continue
 
-    if not api_keys_storage or ("gemini_key" not in api_keys_storage and not os.getenv("GEMINI_API_KEY")):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API keys not configured. Please setup API keys first."
-        )
+    # Return whatever we have; logic in routes/scripts will decide precedence
     return api_keys_storage

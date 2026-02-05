@@ -22,12 +22,8 @@ from app.services.storage_manager import storage_manager
 from app.auth.dependencies import get_current_user
 
 router = APIRouter()
-
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Enhanced storage for scripts with bullet points
 scripts_storage = {}
 
 def ensure_scripts_directory():
@@ -82,70 +78,55 @@ def get_or_load_scripts(paper_id: str) -> Dict:
 
 @router.post("/{paper_id}/generate", response_model=ScriptResponse)
 async def generate_script(paper_id: str, api_keys: dict = Depends(get_api_keys)):
-    """Generate presentation script from paper with bullet points."""
-    paper_id_str = str(paper_id)  # Ensure we're using a string for comparison
+    """Generate presentation script using Gemini OR Ollama."""
+    paper_id_str = str(paper_id)
     
-    # Try to get from storage manager first
     paper_info = storage_manager.get_paper(paper_id_str)
     if not paper_info:
-        # Fall back to in-memory storage
         if paper_id_str not in papers_storage:
             logger.error(f"Paper ID {paper_id_str} not found in storage. Available IDs: {list(papers_storage.keys())}")
             raise HTTPException(status_code=404, detail=f"Paper ID {paper_id_str} not found")
         paper_info = papers_storage[paper_id_str]
     
-    if not api_keys.get("gemini_key"):
-        raise HTTPException(status_code=400, detail="Gemini API key required")
+    # Validation: Ensure at least one LLM provider is available
+    if not api_keys.get("gemini_key") and not api_keys.get("ollama_url"):
+         raise HTTPException(status_code=400, detail="Gemini API key OR Local LLM (Ollama) configuration required")
 
     try:
-        # Check if this is a PDF-sourced file or LaTeX file
         source_type = paper_info.get("source_type", "latex")
-        logger.info(f"Processing paper {paper_id_str} of source type {source_type}")
         
-        # Get the path to the file (could be tex_file_path for LaTeX or text_file_path for PDF)
         if "tex_file_path" in paper_info:
             file_path = paper_info["tex_file_path"]
-            logger.info(f"Using tex_file_path: {file_path}")
         elif "text_file_path" in paper_info:
             file_path = paper_info["text_file_path"]
-            logger.info(f"Using text_file_path: {file_path}")
         else:
-            available_keys = list(paper_info.keys())
-            logger.error(f"No text or tex file path found. Available keys: {available_keys}")
-            raise ValueError(f"No text or tex file path found in paper info. Available keys: {available_keys}")
+            raise ValueError("No text or tex file path found in paper info")
         
-        # Use the same metadata that's stored in paper_info for consistency
-        # This ensures that the title intro script uses the same metadata as the slides
         metadata = paper_info["metadata"]
         title_intro = generate_title_introduction(
             metadata.get("title", "Research Paper"),
             metadata.get("authors", "Author"),
             metadata.get("date", "2024")
         )
-        print(f"Generated title introduction: {title_intro}")
+
         input_text = extract_text_from_file(file_path)
         input_text = clean_text(input_text)
         
-        # Generate full script using Gemini with improved prompts
-        full_script = generate_full_script_with_gemini(api_keys["gemini_key"], input_text)
+        # PASS THE FULL CONFIG (api_keys), not just the gemini key
+        full_script = generate_full_script_with_gemini(api_keys, input_text)
         
-        # Split into sections
         sections_scripts = split_script_into_sections(full_script)
         
-        # Clean each section for TTS
         cleaned_sections = {}
         for section_name, script_text in sections_scripts.items():
             cleaned_sections[section_name] = clean_script_for_tts_and_video(script_text)
         
-        # Generate bullet points for all sections with a single prompt
-        logger.info(f"Generating bullet points for all sections using single prompt")
+        # PASS FULL CONFIG
         all_bullet_points = generate_all_bullet_points_with_gemini(
-            api_keys["gemini_key"],
+            api_keys,
             cleaned_sections
         )
-        logger.info(f"Generated bullet points for {len(all_bullet_points)} sections")
         
-        # Combine cleaned scripts with bullet points
         sections_with_bullets = {}
         for section_name in cleaned_sections.keys():
             sections_with_bullets[section_name] = {
@@ -154,7 +135,6 @@ async def generate_script(paper_id: str, api_keys: dict = Depends(get_api_keys))
                 "assigned_image": None
             }
         
-        # Store comprehensive script data
         script_data = {
             "sections": sections_with_bullets,
             "full_script": full_script,
@@ -164,12 +144,8 @@ async def generate_script(paper_id: str, api_keys: dict = Depends(get_api_keys))
         }
         
         scripts_storage[paper_id] = script_data
+        save_scripts_to_file(paper_id, script_data)
         
-        # Save to file immediately
-        if not save_scripts_to_file(paper_id, script_data):
-            logger.warning(f"Failed to save scripts to file for paper {paper_id}")
-        
-        # Return only script text for compatibility
         sections_scripts_only = {k: v["script"] for k, v in sections_with_bullets.items()}
         
         return ScriptResponse(
