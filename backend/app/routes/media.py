@@ -36,8 +36,9 @@ async def generate_audio(
         else:
             raise HTTPException(status_code=404, detail="Scripts not found")
 
-    if not api_keys.get("sarvam_key"):
-        raise HTTPException(status_code=400, detail="Sarvam API key required for TTS")
+    # Sarvam API key is no longer strictly required for local TTS
+    # if not api_keys.get("sarvam_key"):
+    #    raise HTTPException(status_code=400, detail="Sarvam API key required for TTS")
 
     try:
         scripts_info = scripts_storage[paper_id]
