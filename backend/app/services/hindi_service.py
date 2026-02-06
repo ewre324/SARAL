@@ -1,12 +1,15 @@
-from sarvamai import SarvamAI
+import requests
+import json
+import re
 
-def generate_hindi_script_with_google(english_script, api_key):
+def generate_hindi_script_with_google(english_script, api_key=None):
     """
-    Generate a natural Hindi script with appropriate English words mixed in using SarvamAI.
+    Generate a natural Hindi script with appropriate English words mixed in using local Ollama.
+    The api_key argument is kept for compatibility but not used.
 
     Args:
         english_script (str): Original English script
-        api_key (str): API key for SarvamAI service
+        api_key (str): API key (unused)
 
     Returns:
         str: Hindi script with natural English mixing
@@ -14,39 +17,57 @@ def generate_hindi_script_with_google(english_script, api_key):
     if english_script is None or not english_script.strip():
         return None
     
-    # Maximum character limit for mayura:v1 model
-    MAX_CHUNK_SIZE = 990
+    # Max chunk size for Ollama (approx characters)
+    MAX_CHUNK_SIZE = 4000
     
-    # If text is within limit, process it directly
     if len(english_script) <= MAX_CHUNK_SIZE:
-        return _translate_text(english_script, api_key)
+        return _translate_text_ollama(english_script)
     
-    # Split text into chunks at sentence boundaries
     chunks = _split_into_chunks(english_script, MAX_CHUNK_SIZE)
     
-    # Translate each chunk and join the results
     translated_chunks = []
     for chunk in chunks:
-        translated_chunk = _translate_text(chunk, api_key)
+        translated_chunk = _translate_text_ollama(chunk)
         if translated_chunk:
             translated_chunks.append(translated_chunk)
     
     return ' '.join(translated_chunks)
 
-def _translate_text(text, api_key):
-    """Helper function to translate text using SarvamAI."""
-    client = SarvamAI(api_subscription_key=api_key)
+def _translate_text_ollama(text):
+    """Helper function to translate text using local Ollama."""
+    # Try to connect to localhost Ollama
+    url = "http://localhost:11434/api/generate"
+    model = "llama3"
+
+    prompt = f"""
+Translate the following text to Hindi.
+Rules:
+1. Keep technical terms, proper nouns, and difficult words in English (Hinglish).
+2. The translation should be natural and conversational.
+3. Output ONLY the translated text, no explanations.
+
+Text to translate:
+{text}
+"""
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": 0.3
+        }
+    }
+
     try:
-        response = client.text.translate(
-            input=text,
-            source_language_code="en-IN",
-            target_language_code="hi-IN",
-            model="mayura:v1",
-            mode="code-mixed"
-        )
-        return response.translated_text
+        response = requests.post(url, json=payload, timeout=120)
+        if response.status_code == 200:
+             return response.json().get("response", "").strip()
+        else:
+             print(f"Ollama translation failed: {response.status_code} - {response.text}")
+             return None
     except Exception as e:
-        print(f"Translation error: {str(e)}")
+        print(f"Ollama translation error: {str(e)}")
         return None
 
 def _split_into_chunks(text, max_size):
