@@ -1,8 +1,10 @@
 from sarvamai import SarvamAI
+from ..utils.llm_utils import generate_with_ollama
 
 def generate_hindi_script_with_google(english_script, api_key):
     """
     Generate a natural Hindi script with appropriate English words mixed in using SarvamAI.
+    Falls back to Ollama if API key is missing.
 
     Args:
         english_script (str): Original English script
@@ -14,6 +16,12 @@ def generate_hindi_script_with_google(english_script, api_key):
     if english_script is None or not english_script.strip():
         return None
     
+    # Check for API Key
+    if not api_key or not api_key.strip():
+        print("Sarvam API key missing. Using Ollama for translation.")
+        prompt = f"Translate the following text to Hindi (Hinglish style). Keep technical terms in English. Return only the translated text.\n\nText: {english_script}"
+        return generate_with_ollama(prompt)
+
     # Maximum character limit for mayura:v1 model
     MAX_CHUNK_SIZE = 990
     
@@ -35,8 +43,13 @@ def generate_hindi_script_with_google(english_script, api_key):
 
 def _translate_text(text, api_key):
     """Helper function to translate text using SarvamAI."""
-    client = SarvamAI(api_subscription_key=api_key)
+    # Double check in case this is called directly (though usually called via generate_hindi...)
+    if not api_key or not api_key.strip():
+         prompt = f"Translate the following text to Hindi (Hinglish style). Keep technical terms in English. Return only the translated text.\n\nText: {text}"
+         return generate_with_ollama(prompt)
+
     try:
+        client = SarvamAI(api_subscription_key=api_key)
         response = client.text.translate(
             input=text,
             source_language_code="en-IN",
@@ -47,7 +60,10 @@ def _translate_text(text, api_key):
         return response.translated_text
     except Exception as e:
         print(f"Translation error: {str(e)}")
-        return None
+        # Fallback to Ollama on error?
+        print("Attempting fallback to Ollama...")
+        prompt = f"Translate the following text to Hindi (Hinglish style). Keep technical terms in English. Return only the translated text.\n\nText: {text}"
+        return generate_with_ollama(prompt)
 
 def _split_into_chunks(text, max_size):
     """

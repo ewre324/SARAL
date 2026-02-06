@@ -1,4 +1,5 @@
 from sarvamai import SarvamAI
+from ..utils.llm_utils import generate_with_ollama
 
 # Comprehensive language mapping for Sarvam SDK
 SUPPORTED_LANGUAGES = {
@@ -55,6 +56,7 @@ def get_language_code(language):
 def translate_to_language(english_script, target_language, api_key, mode="code-mixed"):
     """
     Translate English script to target language using SarvamAI.
+    Falls back to Ollama if API key is missing.
 
     Args:
         english_script (str): Original English script
@@ -72,6 +74,12 @@ def translate_to_language(english_script, target_language, api_key, mode="code-m
     target_code = get_language_code(target_language)
     if not target_code:
         raise ValueError(f"Unsupported language: {target_language}")
+
+    # Check for API Key
+    if not api_key or not api_key.strip():
+        print(f"Sarvam API key missing. Using Ollama for {target_language} translation.")
+        prompt = f"Translate the following text to {target_language}. Return only the translated text.\n\nText: {english_script}"
+        return generate_with_ollama(prompt)
     
     # Maximum character limit for mayura:v1 model
     MAX_CHUNK_SIZE = 990
@@ -94,8 +102,21 @@ def translate_to_language(english_script, target_language, api_key, mode="code-m
 
 def _translate_text(text, target_language_code, api_key, mode="code-mixed"):
     """Helper function to translate text using SarvamAI."""
-    client = SarvamAI(api_subscription_key=api_key)
+    # Check key again just in case
+    if not api_key or not api_key.strip():
+        # Map code back to name or just use code if acceptable by Ollama
+        # Ideally we want language name for Ollama prompt
+        lang_name = target_language_code # Fallback
+        for name, code in SUPPORTED_LANGUAGES.items():
+            if code == target_language_code:
+                lang_name = name
+                break
+
+        prompt = f"Translate the following text to {lang_name}. Return only the translated text.\n\nText: {text}"
+        return generate_with_ollama(prompt)
+
     try:
+        client = SarvamAI(api_subscription_key=api_key)
         response = client.text.translate(
             input=text,
             source_language_code="en-IN",
@@ -106,7 +127,15 @@ def _translate_text(text, target_language_code, api_key, mode="code-mixed"):
         return response.translated_text
     except Exception as e:
         print(f"Translation error: {str(e)}")
-        return None
+        print("Attempting fallback to Ollama...")
+        # Fallback
+        lang_name = target_language_code
+        for name, code in SUPPORTED_LANGUAGES.items():
+            if code == target_language_code:
+                lang_name = name
+                break
+        prompt = f"Translate the following text to {lang_name}. Return only the translated text.\n\nText: {text}"
+        return generate_with_ollama(prompt)
 
 def _split_into_chunks(text, max_size):
     """
