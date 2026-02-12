@@ -78,7 +78,7 @@ def get_or_load_scripts(paper_id: str) -> Dict:
 
 @router.post("/{paper_id}/generate", response_model=ScriptResponse)
 async def generate_script(paper_id: str, api_keys: dict = Depends(get_api_keys)):
-    """Generate presentation script using Gemini OR Ollama."""
+    """Generate presentation script using local Ollama."""
     paper_id_str = str(paper_id)
     
     paper_info = storage_manager.get_paper(paper_id_str)
@@ -89,8 +89,8 @@ async def generate_script(paper_id: str, api_keys: dict = Depends(get_api_keys))
         paper_info = papers_storage[paper_id_str]
     
     # Validation: Ensure at least one LLM provider is available
-    if not api_keys.get("gemini_key") and not api_keys.get("ollama_url"):
-         raise HTTPException(status_code=400, detail="Gemini API key OR Local LLM (Ollama) configuration required")
+    if not api_keys.get("ollama_url"):
+         raise HTTPException(status_code=400, detail="Local Ollama configuration is required")
 
     try:
         source_type = paper_info.get("source_type", "latex")
@@ -112,7 +112,7 @@ async def generate_script(paper_id: str, api_keys: dict = Depends(get_api_keys))
         input_text = extract_text_from_file(file_path)
         input_text = clean_text(input_text)
         
-        # PASS THE FULL CONFIG (api_keys), not just the gemini key
+        # Pass full Ollama config
         full_script = generate_full_script_with_gemini(api_keys, input_text)
         
         sections_scripts = split_script_into_sections(full_script)
@@ -121,7 +121,7 @@ async def generate_script(paper_id: str, api_keys: dict = Depends(get_api_keys))
         for section_name, script_text in sections_scripts.items():
             cleaned_sections[section_name] = clean_script_for_tts_and_video(script_text)
         
-        # PASS FULL CONFIG
+        # Pass full Ollama config
         all_bullet_points = generate_all_bullet_points_with_gemini(
             api_keys,
             cleaned_sections

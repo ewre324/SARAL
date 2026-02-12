@@ -33,7 +33,7 @@ const LandingPage = () => {
     {
       icon: FiZap,
       title: 'AI Script Generation',
-      description: 'Generate engaging presentation scripts using advanced AI models like Gemini and GPT for educational content.'
+      description: 'Generate engaging presentation scripts using your local Ollama models for educational content.'
     },
     {
       icon: FiMic,

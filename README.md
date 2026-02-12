@@ -31,7 +31,7 @@ SARAL AI is a full-stack application that automates the process of converting re
 
 SARAL AI transforms research papers into professional educational videos through a structured workflow:
 
-1. **API Keys Setup:** Configure required API keys for AI and TTS services.
+1. **Local LLM Setup:** Configure your local Ollama URL and model.
 2. **Paper Upload:** Submit papers via arXiv links or direct LaTeX uploads.
 3. **Script Generation:** Convert paper content into narration scripts using AI.
 4. **Slides Generation:** Create presentation slides with bullet points and images.
@@ -42,7 +42,7 @@ SARAL AI transforms research papers into professional educational videos through
 ## Features
 
 - **Multiple Input Methods:** Upload LaTeX ZIPs or import from arXiv.
-- **AI-Generated Scripts:** Uses Google Gemini API for educational narration.
+- **AI-Generated Scripts:** Uses local Ollama models for educational narration.
 - **Interactive Editor:** Edit title, section scripts, and bullet points.
 - **Image Selection:** Assign extracted figures to slides.
 - **Multilingual Support:** Generate videos in English or Hindi (with Hinglish technical terms).
@@ -229,19 +229,19 @@ yarn install
 
 ## Configuration
 
-### API Keys
+### Local Ollama Configuration
 
 Create a `.env` file in the `backend/` directory:
 
 ```
-GOOGLE_API_KEY=your_gemini_api_key
-SARVAM_API_KEY=your_sarvam_api_key
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=llama3
 ```
 
-- **Google Gemini API Key:** [Google AI Studio](https://makersuite.google.com/)
-- **Sarvam TTS API Key (optional):** [Sarvam AI](https://sarvam.ai/)
+- Ensure Ollama is installed and running locally.
+- Pull the model you want to use, e.g. `ollama pull llama3`.
 
-You can also provide these keys via the web interface at runtime.
+You can also provide this configuration via the web interface at runtime.
 
 ---
 
@@ -272,7 +272,7 @@ App available at [http://localhost:3000](http://localhost:3000).
 
 ## Workflow Guide
 
-1. **API Keys Setup:** Enter your Google Gemini API key (required) and Sarvam TTS API key (optional).
+1. **Local LLM Setup:** Confirm your Ollama URL and model (defaults provided).
 2. **Paper Upload:** Enter an arXiv URL or upload a LaTeX ZIP.
 3. **Script Generation:** Generate and edit narration scripts for each section.
 4. **Slides Generation:** Assign images to slides and review bullet points.
@@ -286,7 +286,7 @@ App available at [http://localhost:3000](http://localhost:3000).
 
 - **PDF Conversion Errors:** Ensure `poppler-utils` and LaTeX (`pdflatex`) are installed and in PATH.
 - **FFmpeg Errors:** Ensure FFmpeg is installed and in PATH.
-- **API Key Errors:** Double-check `.env` formatting and key validity.
+- **Ollama Errors:** Verify the Ollama service is running and model is pulled locally.
 
 ### Frontend
 
@@ -322,7 +322,7 @@ See [http://localhost:8000/docs](http://localhost:8000/docs) for interactive API
 
 ## Customization
 
-- **AI Providers:** Configure API keys in `backend/.env`.
+- **AI Provider:** Configure local Ollama in `backend/.env`.
 - **TTS Voices:** Edit `frontend/src/utils/constants.js` to add or modify TTS voice options.
 - **Styling:** Customize Tailwind in `frontend/tailwind.config.js` and CSS in `frontend/src/index.css`.
 
@@ -333,5 +333,4 @@ See [http://localhost:8000/docs](http://localhost:8000/docs) for interactive API
 - [Create React App](https://github.com/facebook/create-react-app)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Tailwind CSS](https://tailwindcss.com/)
-- [OpenAI](https://openai.com/)
-- [Google Cloud](https://cloud.google.com/)
+- [Ollama](https://ollama.com/)
