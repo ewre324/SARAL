@@ -12,40 +12,28 @@ export const useApi = () => {
 
 export const ApiProvider = ({ children }) => {
   const [apiKeys, setApiKeys] = useState({
-    gemini: localStorage.getItem('gemini_key') || '',
-    sarvam: localStorage.getItem('sarvam_key') || '',
-    openai: localStorage.getItem('openai_key') || ''
+    ollama_url: localStorage.getItem('ollama_url') || 'http://localhost:11434',
+    ollama_model: localStorage.getItem('ollama_model') || 'llama3'
   });
 
   const [apiStatus, setApiStatus] = useState({
-    gemini: false,
-    sarvam: false,
-    openai: false
+    ollama: false
   });
 
   const updateApiKey = (service, key) => {
-    setApiKeys(prev => ({ ...prev, [service]: key }));
-    localStorage.setItem(`${service}_key`, key);
+    setApiKeys((prev) => ({ ...prev, [service]: key }));
+    localStorage.setItem(service, key);
   };
 
   const clearApiKeys = () => {
-    setApiKeys({ gemini: '', sarvam: '', openai: '' });
-    localStorage.removeItem('gemini_key');
-    localStorage.removeItem('sarvam_key');
-    localStorage.removeItem('openai_key');
-  };
-
-  const value = {
-    apiKeys,
-    apiStatus,
-    setApiStatus,
-    updateApiKey,
-    clearApiKeys
+    setApiKeys({ ollama_url: 'http://localhost:11434', ollama_model: 'llama3' });
+    localStorage.removeItem('ollama_url');
+    localStorage.removeItem('ollama_model');
   };
 
   return (
-    <ApiContext.Provider value={value}>
+    <ApiContext.Provider value={{ apiKeys, apiStatus, setApiStatus, updateApiKey, clearApiKeys }}>
       {children}
     </ApiContext.Provider>
-    );
+  );
 };

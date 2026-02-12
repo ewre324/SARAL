@@ -216,13 +216,11 @@ export const validateApiKey = (key, provider) => {
   if (!key || typeof key !== 'string') return false;
   
   switch (provider) {
-  case 'gemini':
-    return key.length >= 30 && key.startsWith('AI');
-  case 'openai':
-    return key.length >= 40 && key.startsWith('sk-');
-  case 'sarvam':
-    return key.length >= 20;
+  case 'ollama_url':
+    return /^https?:\/\/.+/.test(key);
+  case 'ollama_model':
+    return key.length >= 2;
   default:
-    return key.length >= 10;
+    return key.length >= 2;
   }
 };
